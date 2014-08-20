@@ -58,6 +58,8 @@ public class IConnectToRabbitMQ {
         {
             ConnectionFactory connectionFactory = new ConnectionFactory();
             connectionFactory.setHost(mServer);
+            connectionFactory.setUsername("admin");
+            connectionFactory.setPassword("tmttlbexit");
             mConnection = connectionFactory.newConnection();
             mModel = mConnection.createChannel();
             mModel.exchangeDeclare(mExchange, MyExchangeType, true);
@@ -70,4 +72,8 @@ public class IConnectToRabbitMQ {
             return false;
         }
     }
+
+	public Channel getmModel() {
+		return mModel;
+	}
 }
