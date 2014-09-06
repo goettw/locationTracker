@@ -1,28 +1,55 @@
 package org.goetteonline.locationTracker;
 
-import java.io.IOException;
-
-import org.json.JSONException;
-import org.json.JSONObject;
-
 import android.app.Activity;
+import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.location.Location;
-import android.location.LocationListener;
-import android.location.LocationManager;
-import android.os.AsyncTask;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.SharedPreferences;
+import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
+import android.util.Log;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.widget.TextView;
 
-import com.rabbitmq.client.AMQP.BasicProperties;
-
 public class MainActivity extends Activity {
-	TextView longitude;
-	TextView latitude;
+public static int COMMAND_LOCATION_LONGITUDE=1;
+	PrefListener prefListener;
+
+	@Override
+	public boolean onCreateOptionsMenu(Menu menu) {
+		MenuInflater inflater = getMenuInflater();
+		inflater.inflate(R.menu.main, menu);
+		return true;
+	}
+
+	@Override
+	public boolean onOptionsItemSelected(MenuItem item) {
+		// Handle item selection
+		switch (item.getItemId()) {
+		case R.id.settings:
+			Intent intent = new Intent(this, SettingsActivity.class);
+			startActivity(intent);
+			return true;
+		default:
+			return super.onOptionsItemSelected(item);
+		}
+	}
+
+//	TextView longitude;
+//	TextView latitude;
+
+	@Override
+	protected void onDestroy() {
+		stopService(intent);
+		super.onDestroy();
+	}
+
 	TextView rabbitMQConnectionStatus;
-	boolean rabbitMQConnected = false;
-	private static final String EXCHANGE_NAME = "logs";
-	private static final String HOST_NAME = "192.168.1.201";
+	Intent intent;
 
 	IConnectToRabbitMQ rabbitMQ;
 
@@ -31,94 +58,50 @@ public class MainActivity extends Activity {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
 
-		longitude = (TextView) findViewById(R.id.textLong);
-		latitude = (TextView) findViewById(R.id.textLat);
-		rabbitMQConnectionStatus = (TextView) findViewById(R.id.textRabbitMQStatus);
-		LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-		LocationListener locationListener = new myLocationListener();
+		LocationTrackerBroadcastReceiver locationTrackerBroadcastReceiver = new LocationTrackerBroadcastReceiver();
+		registerReceiver(locationTrackerBroadcastReceiver, new IntentFilter("org.goetteonline.locationTracker.UPDATEVIEW"));
+		
+		SharedPreferences sharedPrefs = PreferenceManager.getDefaultSharedPreferences(this);
+		prefListener = new PrefListener();
+		sharedPrefs.registerOnSharedPreferenceChangeListener(prefListener);
 
-		locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0,
-				0, locationListener);
-		rabbitMQ = new IConnectToRabbitMQ("192.168.1.201", EXCHANGE_NAME,
-				"fanout");
-		new RabbitMQTask().execute("connect");
+//		longitude = (TextView) findViewById(R.id.textLong);
+//		latitude = (TextView) findViewById(R.id.textLat);
+//		rabbitMQConnectionStatus = (TextView) findViewById(R.id.textRabbitMQStatus);
+
+		String hostName = sharedPrefs.getString(SettingsActivity.PREF_KEY_RABBIT_HOST, "");
+
+		intent = new Intent(this, LocationTrackerService.class);
+
+		startService(intent);
 	}
 
-	void updateRabbitStatus(Boolean status) {
-		rabbitMQConnectionStatus.setText(Boolean.toString(status));
-	}
 
-	class myLocationListener implements LocationListener {
+
+	class PrefListener implements OnSharedPreferenceChangeListener {
+		@Override
+		public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
+			Log.i("PREFERENCE_LISTENER", "key=" + key + ", value=" + sharedPreferences.getString(key, ""));
+
+		}
+	}
+	
+	public class LocationTrackerBroadcastReceiver extends BroadcastReceiver{
 
 		@Override
-		public void onLocationChanged(Location location) {
-			longitude.setText(Double.toString(location.getLongitude()));
-			latitude.setText(Double.toString(location.getLatitude()));
+		public void onReceive(Context context, final Intent intent) {
+			MainActivity.this.runOnUiThread(new Runnable() {
+				
+				@Override
+				public void run() {
+					Log.i("LocationTrackerBroadcastReceiver" , "text=" + intent.getStringExtra("text"));
+					TextView field = (TextView) findViewById(intent.getIntExtra("field", 0)	);
+					field.setText(intent.getStringExtra("text"));
+				}
+			});
 			
-			try {
-				JSONObject m = new JSONObject();
-				m.put("longitude",+location.getLongitude());
-				m.put("latitude",location.getLatitude());
-				new RabbitMQTask().execute(m.toString());
-			} catch (JSONException e) {
-				e.printStackTrace();
-			}
-		}
-
-		@Override
-		public void onStatusChanged(String provider, int status, Bundle extras) {
-			// TODO Auto-generated method stub
-
-		}
-
-		@Override
-		public void onProviderEnabled(String provider) {
-			// TODO Auto-generated method stub
-
-		}
-
-		@Override
-		public void onProviderDisabled(String provider) {
-			// TODO Auto-generated method stub
-
 		}
 
 	}
 
-	class RabbitMQTask extends AsyncTask<String, Integer, Boolean> {
-
-		@Override
-		protected void onPostExecute(Boolean result) {
-			updateRabbitStatus(rabbitMQConnected);
-		}
-
-		@Override
-		protected Boolean doInBackground(String... params) {
-			System.out.println("DORABBIT"+params[0]);
-			if (params[0].equals("connect")) {
-				if (rabbitMQConnected == false) {
-
-					if (rabbitMQ.connectToRabbitMQ())
-						rabbitMQConnected = true;
-
-				}
-				System.out.println("connection status:" + rabbitMQConnected);
-				return Boolean.valueOf(rabbitMQConnected);
-			} else {
-				if (rabbitMQ.getmModel() == null)
-					return Boolean.valueOf(false);
-				try {
-					BasicProperties bp = new BasicProperties.Builder().contentType("application/json").build();
-					rabbitMQ.getmModel().basicPublish(EXCHANGE_NAME, "", bp,
-							params[0].getBytes());
-					return Boolean.valueOf(true);
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-
-			}
-			return null;
-		}
-
-	}
 }

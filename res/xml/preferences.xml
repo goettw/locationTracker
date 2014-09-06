@@ -1,0 +1,12 @@
+
+    <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+        
+        <PreferenceCategory android:title="Rabbit MQ"><EditTextPreference android:title="Host" android:key="rabbit_host" android:enabled="true" />
+        <EditTextPreference android:title="Username" android:key="rabbit_username"/>
+        <EditTextPreference android:title="Password" android:key="rabbit_password"/>
+</PreferenceCategory>
+        <PreferenceCategory android:title="Location">
+            <EditTextPreference android:key="min_time" android:defaultValue="10000" android:title="minimial time (ms)"/>
+            <EditTextPreference android:key="min_distance" android:defaultValue="100" android:title="minimal distance (m)"/>
+        </PreferenceCategory>
+    </PreferenceScreen>

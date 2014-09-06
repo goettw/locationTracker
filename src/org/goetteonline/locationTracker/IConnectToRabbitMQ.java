@@ -7,10 +7,14 @@ import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
 
 public class IConnectToRabbitMQ {
-	public String mServer;
+	protected String server, username, password;
     public String mExchange;
 
-    protected Channel mModel = null;
+    public String getServer() {
+		return server;
+	}
+
+	protected Channel mModel = null;
     protected Connection  mConnection;
 
     protected boolean Running ;
@@ -23,14 +27,27 @@ public class IConnectToRabbitMQ {
      * @param exchange The named exchange
      * @param exchangeType The exchange type name
      */
-    public IConnectToRabbitMQ(String server, String exchange, String exchangeType)
+    public IConnectToRabbitMQ(String server, String username, String password, String exchange, String exchangeType)
     {
-        mServer = server;
+        this.server = server;
+        this.username = username;
+        this.password = password;
+        
         mExchange = exchange;
         MyExchangeType = exchangeType;
     }
 
-    public void Dispose()
+    @Override
+	public boolean equals(Object o) {
+    	IConnectToRabbitMQ other = (IConnectToRabbitMQ)o;
+		return (other.server.endsWith(server) && other.username.equals(username) && other.password.equals(password));
+	}
+
+	public void setServer(String server) {
+		this.server = server;
+	}
+
+	public void dispose()
     {
         Running = false;
 
@@ -40,7 +57,6 @@ public class IConnectToRabbitMQ {
               if (mModel != null)
                   mModel.abort();
           } catch (IOException e) {
-              // TODO Auto-generated catch block
               e.printStackTrace();
           }
 
@@ -57,9 +73,10 @@ public class IConnectToRabbitMQ {
         try
         {
             ConnectionFactory connectionFactory = new ConnectionFactory();
-            connectionFactory.setHost(mServer);
-            connectionFactory.setUsername("admin");
-            connectionFactory.setPassword("tmttlbexit");
+            connectionFactory.setHost(server);
+            connectionFactory.setUsername(username);
+            connectionFactory.setPassword(password);
+            connectionFactory.setConnectionTimeout(2000);
             mConnection = connectionFactory.newConnection();
             mModel = mConnection.createChannel();
             mModel.exchangeDeclare(mExchange, MyExchangeType, true);
